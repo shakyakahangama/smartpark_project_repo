@@ -12,8 +12,16 @@ export default function Signin() {
 
   async function onLogin() {
     try {
-      await api.login({ email, password });
-      router.replace("/home");
+      // backend expects lowercase email
+      const cleanEmail = email.trim().toLowerCase();
+
+      await api.login({ email: cleanEmail, password });
+
+      // ✅ PASS EMAIL TO HOME
+      router.replace({
+        pathname: "/home",
+        params: { email: cleanEmail },
+      });
     } catch (e) {
       Alert.alert("Login Error", e.message);
     }
@@ -32,6 +40,7 @@ export default function Signin() {
         value={email}
         onChangeText={setEmail}
         autoCapitalize="none"
+        keyboardType="email-address"
       />
 
       <Text style={styles.label}>PASSWORD:</Text>

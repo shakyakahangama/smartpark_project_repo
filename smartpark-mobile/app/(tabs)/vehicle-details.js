@@ -1,91 +1,149 @@
 import React, { useState } from "react";
-import { Text, TextInput, StyleSheet, Alert, Pressable } from "react-native";
+import { Text, TextInput, Pressable, StyleSheet, Alert } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams } from "expo-router";
 import { api } from "../../src/api/client";
 
-
 export default function VehicleDetails() {
-  const { email } = useLocalSearchParams();
-  const [plate, setPlate] = useState("");
-  const [type, setType] = useState("");
-  const [length, setLength] = useState("");
-  const [width, setWidth] = useState("");
+  // get email from navigation
+  const params = useLocalSearchParams();
+  const email = typeof params.email === "string" ? params.email : "";
 
-  async function addVehicle() {
-    if (!plate || !type || !length || !width) {
-      Alert.alert("Error", "All fields are required");
+  const [plate, setPlate] = useState("");
+  const [vehicleType, setVehicleType] = useState("");
+  const [lengthM, setLengthM] = useState("");
+  const [widthM, setWidthM] = useState("");
+
+  const addVehicle = async () => {
+    if (!email) {
+      Alert.alert("Error", "Email missing. Please login again.");
+      return;
+    }
+
+    if (!plate || !vehicleType || !lengthM || !widthM) {
+      Alert.alert("Error", "Please fill all fields");
+      return;
+    }
+
+    const lengthNum = Number(lengthM);
+    const widthNum = Number(widthM);
+
+    if (isNaN(lengthNum) || isNaN(widthNum)) {
+      Alert.alert("Error", "Length & Width must be numbers");
       return;
     }
 
     try {
       await api.addVehicle({
-        email,
-        plate_number: plate,
-        vehicle_type: type,
-        length_m: Number(length),
-        width_m: Number(width),
+        email: email,
+        plate_number: plate.trim(),
+        vehicle_type: vehicleType.trim(),
+        length_m: lengthNum,
+        width_m: widthNum,
       });
 
-      Alert.alert("Success ✅", "Vehicle added");
-      setPlate(""); setType(""); setLength(""); setWidth("");
-    } catch (e) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Success ✅", "Vehicle added!");
+      setPlate("");
+      setVehicleType("");
+      setLengthM("");
+      setWidthM("");
+    } catch (err) {
+      Alert.alert("Error", err.message);
+      console.log(err);
     }
-  }
+  };
 
   return (
     <LinearGradient colors={["#071a3a", "#243b63", "#b9b9b9"]} style={styles.bg}>
-      <Text style={styles.title}>Vehicle Details</Text>
+      <Text style={styles.title}>Add Vehicle</Text>
 
-      <Input label="Plate Number" value={plate} setValue={setPlate} />
-      <Input label="Vehicle Type" value={type} setValue={setType} />
-      <Input label="Length (m)" value={length} setValue={setLength} numeric />
-      <Input label="Width (m)" value={width} setValue={setWidth} numeric />
+      {/* Debug email */}
+      <Text style={styles.debug}>Email: {email || "(missing)"}</Text>
+
+      <TextInput
+        style={styles.input}
+        placeholder="Plate Number"
+        placeholderTextColor="#aaa"
+        value={plate}
+        onChangeText={setPlate}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Vehicle Type"
+        placeholderTextColor="#aaa"
+        value={vehicleType}
+        onChangeText={setVehicleType}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Length (m)"
+        placeholderTextColor="#aaa"
+        keyboardType="numeric"
+        value={lengthM}
+        onChangeText={setLengthM}
+      />
+
+      <TextInput
+        style={styles.input}
+        placeholder="Width (m)"
+        placeholderTextColor="#aaa"
+        keyboardType="numeric"
+        value={widthM}
+        onChangeText={setWidthM}
+      />
 
       <Pressable style={styles.btn} onPress={addVehicle}>
-        <Ionicons name="add-circle" size={22} color="white" />
-        <Text style={styles.btnText}>Add Vehicle</Text>
+        <Text style={styles.btnText}>ADD VEHICLE</Text>
       </Pressable>
     </LinearGradient>
   );
 }
 
-function Input({ label, value, setValue, numeric }) {
-  return (
-    <>
-      <Text style={styles.label}>{label}</Text>
-      <TextInput
-        style={styles.input}
-        value={value}
-        onChangeText={setValue}
-        keyboardType={numeric ? "numeric" : "default"}
-      />
-    </>
-  );
-}
-
 const styles = StyleSheet.create({
-  bg: { flex: 1, padding: 24, paddingTop: 60 },
-  title: { color: "white", fontSize: 28, fontWeight: "900", marginBottom: 20 },
-  label: { color: "#eee", fontWeight: "700", marginTop: 14 },
+  bg: {
+    flex: 1,
+    padding: 22,
+    paddingTop: 60,
+  },
+
+  title: {
+    color: "white",
+    fontSize: 28,
+    fontWeight: "900",
+    textAlign: "center",
+    marginBottom: 12,
+  },
+
+  debug: {
+    color: "white",
+    textAlign: "center",
+    marginBottom: 14,
+    opacity: 0.8,
+  },
+
   input: {
     height: 50,
-    backgroundColor: "white",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    marginTop: 6,
-  },
-  btn: {
-    marginTop: 30,
-    height: 54,
-    borderRadius: 26,
+    borderRadius: 14,
     backgroundColor: "#0b1d44",
-    flexDirection: "row",
-    gap: 10,
+    marginBottom: 12,
+    paddingHorizontal: 12,
+    color: "white",
+  },
+
+  btn: {
+    height: 55,
+    borderRadius: 18,
+    backgroundColor: "#071a3a",
     justifyContent: "center",
     alignItems: "center",
+    marginTop: 10,
   },
-  btnText: { color: "white", fontSize: 18, fontWeight: "800" },
+
+  btnText: {
+    color: "white",
+    fontWeight: "900",
+    fontSize: 16,
+  },
 });

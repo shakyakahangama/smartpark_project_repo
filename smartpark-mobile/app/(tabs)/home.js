@@ -1,5 +1,5 @@
 import React from "react";
-import { Text, StyleSheet, Pressable, Image } from "react-native";
+import { Text, StyleSheet, Pressable, Image, ScrollView, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -9,110 +9,127 @@ export default function Home() {
   const { email } = useLocalSearchParams();
 
   return (
-    <LinearGradient
-      colors={["#071a3a", "#243b63", "#b9b9b9"]}
-      style={styles.bg}
-    >
-      {/* LOGO */}
-      <Image
-        source={require("../../assets/images/logo.png")}
-        style={styles.logo}
-      />
+    <LinearGradient colors={["#071a3a", "#243b63", "#b9b9b9"]} style={{ flex: 1 }}>
+      <ScrollView contentContainerStyle={styles.container}>
 
-      {/* TITLE */}
-      <Text style={styles.title}>SMARTPARK</Text>
-      <Text style={styles.subtitle}>Welcome back 🎉</Text>
+        {/* TITLE */}
+        <Text style={styles.title}>SMARTPARK</Text>
+        <Text style={styles.subtitle}>Welcome back 🎉</Text>
+        <Text style={styles.email}>Email: {email}</Text>
 
-      {/* ILLUSTRATION */}
-      <Image
-        source={require("../../assets/images/home-illustration.png")}
-        style={styles.illustration}
-      />
+        {/* BIG CENTER LOGO ONLY */}
+        <Image
+          source={require("../../assets/images/logo.png")}
+          style={styles.bigLogo}
+        />
 
-      {/* MENU BUTTONS */}
-      <MenuCard
-        icon="car-sport"
-        text="Vehicle Details"
-        onPress={() =>
-          router.push({
-            pathname: "/vehicle-details",
-            params: { email },
-          })
-        }
-      />
+        {/* BUTTONS */}
+        <View style={{ marginTop: 20 }}>
+          <MenuCard
+            icon="car-sport"
+            text="Vehicle Details"
+            onPress={() =>
+              router.push({
+                pathname: "/vehicle-details",
+                params: { email },
+              })
+            }
+          />
 
-      <MenuCard
-        icon="calendar"
-        text="Reservation"
-        onPress={() =>
-          router.push({
-            pathname: "/reservation-details",
-            params: { email },
-          })
-        }
-      />
+          <MenuCard
+            icon="calendar"
+            text="Reservation"
+            onPress={() =>
+              router.push({
+                pathname: "/reservation-details",
+                params: { email },
+              })
+            }
+          />
 
-      <MenuCard
-        icon="navigate"
-        text="Path Guidance"
-        onPress={() => router.push("/path-guidance")}
-      />
+          <MenuCard
+            icon="list"
+            text="Display Reservation"
+            onPress={() =>
+              router.push({
+                pathname: "/display-reservation",
+                params: { email },
+              })
+            }
+          />
 
-      <MenuCard
-        icon="chatbox-ellipses"
-        text="Feedback"
-        onPress={() => router.push("/feedback")}
-      />
+          <MenuCard
+            icon="navigate"
+            text="Path Guidance"
+            onPress={() =>
+              router.push({
+                pathname: "/path-guidance",
+                params: { email },
+              })
+            }
+          />
+
+          <MenuCard
+            icon="chatbox-ellipses"
+            text="Feedback"
+            onPress={() =>
+              router.push({
+                pathname: "/feedback",
+                params: { email },
+              })
+            }
+          />
+        </View>
+
+      </ScrollView>
     </LinearGradient>
   );
 }
 
-/* REUSABLE MENU CARD */
 function MenuCard({ icon, text, onPress }) {
   return (
     <Pressable style={styles.card} onPress={onPress}>
-      <Ionicons name={icon} size={26} color="#fff" />
+      <Ionicons name={icon} size={24} color="#fff" />
       <Text style={styles.cardText}>{text}</Text>
     </Pressable>
   );
 }
 
-/* STYLES */
 const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
+  container: {
     paddingHorizontal: 22,
     paddingTop: 60,
-  },
-
-  logo: {
-    width: 10,
-    height: 10,
-    alignSelf: "center",
-    marginBottom: 10,
+    paddingBottom: 40,
   },
 
   title: {
     color: "white",
-    fontSize: 30,
+    fontSize: 32,
     fontWeight: "900",
     textAlign: "center",
   },
 
   subtitle: {
     color: "white",
-    marginTop: 8,
     fontSize: 16,
     textAlign: "center",
-    marginBottom: 16,
-    opacity: 0.9,
+    marginTop: 6,
   },
 
-  illustration: {
-    width: "100%",
+  email: {
+    color: "white",
+    opacity: 0.7,
+    textAlign: "center",
+    marginTop: 6,
+  },
+
+  bigLogo: {
+    width: 180,
     height: 180,
+    alignSelf: "center",
+    marginTop: 20,
+    marginBottom: 20,
     resizeMode: "contain",
-    marginBottom: 24,
   },
 
   card: {
@@ -124,13 +141,11 @@ const styles = StyleSheet.create({
     backgroundColor: "#0b1d44",
     paddingHorizontal: 18,
     marginBottom: 14,
-    elevation: 4,
   },
 
   cardText: {
     color: "white",
     fontSize: 16,
     fontWeight: "800",
-    letterSpacing: 0.5,
   },
 });

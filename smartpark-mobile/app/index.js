@@ -1,5 +1,5 @@
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import { View, Text, StyleSheet, Pressable, Image } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 
@@ -8,9 +8,16 @@ export default function Index() {
 
   return (
     <LinearGradient colors={["#071a3a", "#243b63", "#b9b9b9"]} style={styles.bg}>
+      
+      {/* LOGO */}
       <View style={{ alignItems: "center", marginTop: 70 }}>
-        <View style={styles.logo} />
+        <Image
+          source={require("../assets/images/logo.png")}
+          style={styles.logo}
+        />
+
         <Text style={styles.title}>SMART PARK</Text>
+
         <Text style={styles.sub}>
           PARKING SYSTEM THAT CAN ALLOCATE ANYWHERE, ANYTIME.
         </Text>
@@ -18,11 +25,10 @@ export default function Index() {
 
       <View style={{ flex: 1 }} />
 
-      <View style={styles.btn}>
-        <Text style={styles.btnText} onPress={() => router.push("/auth-choice")}>
-          Get Started
-        </Text>
-      </View>
+      {/* GET STARTED BUTTON */}
+      <Pressable style={styles.btn} onPress={() => router.push("/auth-choice")}>
+        <Text style={styles.btnText}>Get Started</Text>
+      </Pressable>
 
       <View style={{ height: 60 }} />
     </LinearGradient>
@@ -30,16 +36,44 @@ export default function Index() {
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, paddingHorizontal: 22, paddingTop: 35 },
+  bg: {
+    flex: 1,
+    paddingHorizontal: 22,
+    paddingTop: 35,
+  },
+
   logo: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    backgroundColor: "rgba(0,255,255,0.18)",
+    width: 120,
+    height: 120,
+    resizeMode: "contain",
     marginBottom: 18,
   },
-  title: { color: "white", fontSize: 32, fontWeight: "800", letterSpacing: 2 },
-  sub: { color: "rgba(255,255,255,0.85)", textAlign: "center", marginTop: 10, fontWeight: "700" },
-  btn: { height: 52, borderRadius: 26, justifyContent: "center", alignItems: "center", backgroundColor: "#0b1d44" },
-  btnText: { color: "white", fontSize: 18, fontWeight: "800" },
+
+  title: {
+    color: "white",
+    fontSize: 32,
+    fontWeight: "800",
+    letterSpacing: 2,
+  },
+
+  sub: {
+    color: "rgba(255,255,255,0.85)",
+    textAlign: "center",
+    marginTop: 10,
+    fontWeight: "700",
+  },
+
+  btn: {
+    height: 55,
+    borderRadius: 26,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#0b1d44",
+  },
+
+  btnText: {
+    color: "white",
+    fontSize: 18,
+    fontWeight: "800",
+  },
 });
