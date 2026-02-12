@@ -1,4 +1,4 @@
-const BASE_URL = "http://172.20.10.4:5000"; // ✅ use your current backend IP
+const BASE_URL = "http://172.20.10.4:5000"; // your backend IP
 
 async function request(path, method, body) {
   const res = await fetch(`${BASE_URL}${path}`, {
@@ -7,7 +7,6 @@ async function request(path, method, body) {
     body: body ? JSON.stringify(body) : undefined,
   });
 
-  // ✅ safer JSON parse (prevents crash if response isn't JSON)
   let data = null;
   try {
     data = await res.json();
@@ -24,24 +23,35 @@ async function request(path, method, body) {
 }
 
 export const api = {
-  // AUTH
+  // ================= AUTH =================
   signup: (payload) => request("/signup", "POST", payload),
   login: (payload) => request("/login", "POST", payload),
 
-  // VEHICLE
+  // ================= VEHICLE =================
   addVehicle: (payload) => request("/vehicle/add", "POST", payload),
+
   listVehicles: (email) =>
     request(`/vehicle/list/${encodeURIComponent(email)}`, "GET"),
 
-  // RESERVATION
+  // 🗑 DELETE VEHICLE
+  deleteVehicle: (payload) =>
+    request("/vehicle/delete", "POST", payload),
+
+  // ================= RESERVATION =================
   createReservation: (payload) =>
     request("/reservation/create", "POST", payload),
+
   listReservations: (email) =>
     request(`/reservation/list/${encodeURIComponent(email)}`, "GET"),
+
   cancelReservation: (payload) =>
     request("/reservation/cancel", "POST", payload),
 
-  // ✅ PATH GUIDANCE (MODEL 2)
+  // 🗑 HARD DELETE RESERVATION (optional)
+  deleteReservation: (payload) =>
+    request("/reservation/delete", "POST", payload),
+
+  // ================= PATH GUIDANCE =================
   guidance: (slotCode) =>
     request(`/guidance/${encodeURIComponent(slotCode)}`, "GET"),
 };
