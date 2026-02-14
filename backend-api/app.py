@@ -17,58 +17,67 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
 db = SQLAlchemy(app)
 
-
+# =========================================================
 # MODELS
-
+# =========================================================
 
 class User(db.Model):
-    __tablename__ = "user"
+    __tablename__ = "users"  # safer than "user"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(180), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
 
+    vehicles = db.relationship("Vehicle", backref="user", lazy=True)
+    reservations = db.relationship("Reservation", backref="user", lazy=True)
+
 
 class Vehicle(db.Model):
-    __tablename__ = "vehicle"
+    __tablename__ = "vehicles"
     id = db.Column(db.Integer, primary_key=True)
     plate_number = db.Column(db.String(60), nullable=False)
     vehicle_type = db.Column(db.String(60), nullable=False)
     length_m = db.Column(db.Float, nullable=False)
     width_m = db.Column(db.Float, nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
+    reservations = db.relationship("Reservation", backref="vehicle", lazy=True)
 
 
 class ParkingArea(db.Model):
-    __tablename__ = "parking_area"
+    __tablename__ = "parking_areas"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
 
+    slots = db.relationship("ParkingSlot", backref="area", lazy=True)
+
 
 class ParkingSlot(db.Model):
-    __tablename__ = "parking_slot"
+    __tablename__ = "parking_slots"
     id = db.Column(db.Integer, primary_key=True)
     slot_code = db.Column(db.String(20), unique=True, nullable=False)
     length_m = db.Column(db.Float, nullable=False)
     width_m = db.Column(db.Float, nullable=False)
     status = db.Column(db.String(20), default="available")  # available/reserved/occupied
-    area_id = db.Column(db.Integer, db.ForeignKey("parking_area.id"), nullable=False)
+    area_id = db.Column(db.Integer, db.ForeignKey("parking_areas.id"), nullable=False)
+
+    reservations = db.relationship("Reservation", backref="slot", lazy=True)
 
 
 class Reservation(db.Model):
-    __tablename__ = "reservation"
+    __tablename__ = "reservations"
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicle.id"), nullable=False)
-    slot_id = db.Column(db.Integer, db.ForeignKey("parking_slot.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    vehicle_id = db.Column(db.Integer, db.ForeignKey("vehicles.id"), nullable=False)
+    slot_id = db.Column(db.Integer, db.ForeignKey("parking_slots.id"), nullable=False)
     start_time = db.Column(db.DateTime, nullable=False)
     end_time = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), default="active")  # active/cancelled/completed
 
 
-
+# =========================================================
 # HELPERS
-
+# =========================================================
 
 def require_fields(data, fields):
     missing = [f for f in fields if data.get(f) in (None, "", [])]
@@ -87,7 +96,16 @@ def parse_dt(dt_str):
     raise ValueError("Invalid datetime format. Use 'YYYY-MM-DD HH:MM' or 'YYYY-MM-DDTHH:MM'.")
 
 
-# Auto expire reservations and free slots
+def ensure_area(area_id=1):
+    area = ParkingArea.query.get(area_id)
+    if not area:
+        area = ParkingArea(name=f"Area {area_id}")
+        db.session.add(area)
+        db.session.commit()
+    return area
+
+
+# ✅ Auto-expire reservations and free slots
 def expire_reservations():
     now = datetime.now()
 
@@ -98,16 +116,16 @@ def expire_reservations():
 
     for r in expired:
         r.status = "completed"
-        slot = ParkingSlot.query.get(r.slot_id)
-        if slot and slot.status == "reserved":
-            slot.status = "available"
+        if r.slot and r.slot.status == "reserved":
+            r.slot.status = "available"
 
     if expired:
         db.session.commit()
 
 
+# =========================================================
 # MODEL 1: SLOT ALLOCATION (Best-fit)
-
+# =========================================================
 
 def best_slot_for_vehicle(vehicle, area_id=None):
     q = ParkingSlot.query.filter_by(status="available")
@@ -126,7 +144,6 @@ def best_slot_for_vehicle(vehicle, area_id=None):
     return candidates[0]
 
 
-# Generate next slot code: A1, A2, A3
 def next_slot_code(prefix="A"):
     slots = ParkingSlot.query.filter(ParkingSlot.slot_code.like(f"{prefix}%")).all()
     max_num = 0
@@ -137,17 +154,12 @@ def next_slot_code(prefix="A"):
     return f"{prefix}{max_num + 1}"
 
 
-# Create a slot that fits this vehicle (with margin)
 def create_slot_for_vehicle(vehicle, area_id=1):
-    area = ParkingArea.query.get(area_id)
-    if not area:
-        area = ParkingArea(name=f"Area {area_id}")
-        db.session.add(area)
-        db.session.commit()
+    area = ensure_area(area_id)
 
     code = next_slot_code("A")
 
-    # Add safety margins so slot isn't exactly the vehicle size
+    # safety margins
     new_slot = ParkingSlot(
         slot_code=code,
         length_m=float(vehicle.length_m) + 0.5,
@@ -160,18 +172,13 @@ def create_slot_for_vehicle(vehicle, area_id=1):
     return new_slot
 
 
-
+# =========================================================
 # MODEL 2: PATH GUIDANCE (Graph + Dijkstra)
-
+# =========================================================
 
 def build_graph(row="A", n=50):
-    """
-    Creates a simple row graph:
-    ENTRANCE -> A1 -> A2 -> ... -> A50
-    """
     g = {"ENTRANCE": {}}
 
-    # ENTRANCE connects to first few slots
     for i in range(1, min(6, n + 1)):
         g["ENTRANCE"][f"{row}{i}"] = i
 
@@ -211,9 +218,9 @@ def shortest_path(graph, start, goal):
     return None, None
 
 
-
+# =========================================================
 # ROUTES
-
+# =========================================================
 
 @app.get("/")
 def home():
@@ -225,7 +232,7 @@ def health():
     return jsonify({"ok": True}), 200
 
 
-#  USER 
+# ---------------- USER ----------------
 
 @app.post("/signup")
 def signup():
@@ -267,7 +274,7 @@ def login():
     }), 200
 
 
-#  AREA 
+# ---------------- AREA ----------------
 
 @app.post("/area/add")
 def add_area():
@@ -293,7 +300,7 @@ def list_areas():
     return jsonify([{"id": a.id, "name": a.name} for a in areas]), 200
 
 
-#  SLOT 
+# ---------------- SLOT ----------------
 
 @app.post("/slot/add")
 def add_slot():
@@ -303,7 +310,6 @@ def add_slot():
         return required
 
     code = str(data["slot_code"]).strip().upper()
-
     if ParkingSlot.query.filter_by(slot_code=code).first():
         return jsonify({"error": "slot_code already exists"}), 409
 
@@ -337,7 +343,7 @@ def list_slots():
     } for s in slots]), 200
 
 
-# VEHICLE 
+# ---------------- VEHICLE ----------------
 
 @app.post("/vehicle/add")
 def add_vehicle():
@@ -381,7 +387,6 @@ def list_vehicles(email):
     } for v in vehicles]), 200
 
 
-#  DELETE VEHICLE
 @app.post("/vehicle/delete")
 def delete_vehicle():
     expire_reservations()
@@ -399,7 +404,6 @@ def delete_vehicle():
     if not v or v.user_id != user.id:
         return jsonify({"error": "Vehicle not found for this user"}), 404
 
-    # if active reservation exists for this vehicle, block delete
     active = Reservation.query.filter_by(vehicle_id=v.id, status="active").first()
     if active:
         return jsonify({"error": "Cannot delete vehicle with an active reservation"}), 409
@@ -409,7 +413,7 @@ def delete_vehicle():
     return jsonify({"message": "Vehicle deleted"}), 200
 
 
-# RESERVATION 
+# ---------------- RESERVATION ----------------
 
 @app.post("/reservation/create")
 def create_reservation():
@@ -437,7 +441,6 @@ def create_reservation():
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
 
-    # Find slot; if not found, create a new one to fit vehicle
     created = False
     slot = best_slot_for_vehicle(vehicle)
     if not slot:
@@ -474,20 +477,18 @@ def list_reservations(email):
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # Only show ACTIVE reservations (so cancelled ones won't appear)
-    res = Reservation.query.filter_by(user_id=user.id, status="active").order_by(Reservation.id.desc()).all()
+    # ✅ only active (so cancelled won’t appear after refresh)
+    res = Reservation.query.filter_by(user_id=user.id, status="active") \
+        .order_by(Reservation.id.desc()).all()
 
-    # join vehicle + slot details
     out = []
     for r in res:
-        v = Vehicle.query.get(r.vehicle_id)
-        s = ParkingSlot.query.get(r.slot_id)
         out.append({
             "id": r.id,
             "vehicle_id": r.vehicle_id,
             "slot_id": r.slot_id,
-            "slot": s.slot_code if s else None,
-            "plate": v.plate_number if v else None,
+            "slot": r.slot.slot_code if r.slot else None,
+            "plate": r.vehicle.plate_number if r.vehicle else None,
             "status": r.status,
             "start_time": r.start_time.strftime("%Y-%m-%d %H:%M"),
             "end_time": r.end_time.strftime("%Y-%m-%d %H:%M"),
@@ -513,15 +514,13 @@ def cancel_reservation():
         return jsonify({"error": "Reservation is not active"}), 409
 
     r.status = "cancelled"
-    slot = ParkingSlot.query.get(r.slot_id)
-    if slot:
-        slot.status = "available"
+    if r.slot:
+        r.slot.status = "available"
 
     db.session.commit()
     return jsonify({"message": "Reservation cancelled"}), 200
 
 
-#  HARD DELETE RESERVATION 
 @app.post("/reservation/delete")
 def delete_reservation():
     expire_reservations()
@@ -535,18 +534,15 @@ def delete_reservation():
     if not r:
         return jsonify({"error": "Reservation not found"}), 404
 
-    # free slot if it was active
-    if r.status == "active":
-        slot = ParkingSlot.query.get(r.slot_id)
-        if slot:
-            slot.status = "available"
+    if r.status == "active" and r.slot:
+        r.slot.status = "available"
 
     db.session.delete(r)
     db.session.commit()
     return jsonify({"message": "Reservation deleted"}), 200
 
 
-#  MODEL 2 ROUTE: PATH GUIDANCE 
+# ---------------- PATH GUIDANCE ----------------
 
 @app.get("/guidance/<slot_code>")
 def guidance(slot_code):
@@ -565,7 +561,7 @@ def guidance(slot_code):
     }), 200
 
 
-# MODEL 3 ROUTE: AI DETECT (SIMULATED) 
+# ---------------- AI DETECT (SIMULATED) ----------------
 
 @app.post("/ai/detect")
 def ai_detect():
@@ -588,16 +584,16 @@ def ai_detect():
     }), 200
 
 
-#  DEBUG 
+# ---------------- DEBUG ----------------
 
 @app.get("/debug/routes")
 def debug_routes():
     return jsonify(sorted([str(r) for r in app.url_map.iter_rules()])), 200
 
 
-
+# =========================================================
 # START
-
+# =========================================================
 
 if __name__ == "__main__":
     with app.app_context():

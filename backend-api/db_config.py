@@ -1,8 +1,11 @@
-from urllib.parse import quote_plus
+import os
 
-DB_USER = "root"
-DB_PASS = quote_plus("Nipuna1234!")
-DB_HOST = "localhost"
-DB_NAME = "smartpark_db"
+BASE_DIR = os.path.abspath(os.path.dirname(__file__))
+DB_PATH = os.path.join(BASE_DIR, "smartpark.db")
 
-SQLALCHEMY_DATABASE_URI = f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}"
+# ✅ Render / cloud will use DATABASE_URL if it exists
+# ✅ Otherwise local will use SQLite file
+SQLALCHEMY_DATABASE_URI = os.environ.get(
+    "DATABASE_URL",
+    f"sqlite:///{DB_PATH}"
+)
