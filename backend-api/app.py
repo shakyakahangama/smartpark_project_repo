@@ -1,4 +1,4 @@
-# app.py (WORKING for Local + Render/Gunicorn)
+# app.py (WORKING for Local + Render/Gunicorn) ✅
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -21,14 +21,18 @@ db = SQLAlchemy(app)
 # =========================================================
 
 class User(db.Model):
-    __tablename__ = "users"  # safer than "user"
+    __tablename__ = "users"
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(120), nullable=False)
     email = db.Column(db.String(180), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
 
-    vehicles = db.relationship("Vehicle", backref="user", lazy=True, cascade="all, delete-orphan")
-    reservations = db.relationship("Reservation", backref="user", lazy=True, cascade="all, delete-orphan")
+    vehicles = db.relationship(
+        "Vehicle", backref="user", lazy=True, cascade="all, delete-orphan"
+    )
+    reservations = db.relationship(
+        "Reservation", backref="user", lazy=True, cascade="all, delete-orphan"
+    )
 
 
 class Vehicle(db.Model):
@@ -40,7 +44,9 @@ class Vehicle(db.Model):
     width_m = db.Column(db.Float, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
-    reservations = db.relationship("Reservation", backref="vehicle", lazy=True, cascade="all, delete-orphan")
+    reservations = db.relationship(
+        "Reservation", backref="vehicle", lazy=True, cascade="all, delete-orphan"
+    )
 
 
 class ParkingArea(db.Model):
@@ -48,7 +54,9 @@ class ParkingArea(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
 
-    slots = db.relationship("ParkingSlot", backref="area", lazy=True, cascade="all, delete-orphan")
+    slots = db.relationship(
+        "ParkingSlot", backref="area", lazy=True, cascade="all, delete-orphan"
+    )
 
 
 class ParkingSlot(db.Model):
@@ -60,7 +68,9 @@ class ParkingSlot(db.Model):
     status = db.Column(db.String(20), default="available")  # available/reserved/occupied
     area_id = db.Column(db.Integer, db.ForeignKey("parking_areas.id"), nullable=False)
 
-    reservations = db.relationship("Reservation", backref="slot", lazy=True, cascade="all, delete-orphan")
+    reservations = db.relationship(
+        "Reservation", backref="slot", lazy=True, cascade="all, delete-orphan"
+    )
 
 
 class Reservation(db.Model):
@@ -156,11 +166,10 @@ def create_slot_for_vehicle(vehicle, area_id=1):
     area = ensure_area(area_id)
     code = next_slot_code("A")
 
-    # safety margins
     new_slot = ParkingSlot(
         slot_code=code,
-        length_m=float(vehicle.length_m) + 0.5,
-        width_m=float(vehicle.width_m) + 0.3,
+        length_m=float(vehicle.length_m) + 0.5,  # margin
+        width_m=float(vehicle.width_m) + 0.3,    # margin
         status="available",
         area_id=area.id,
     )
@@ -595,14 +604,7 @@ def ai_detect():
 def debug_routes():
     return jsonify(sorted([str(r) for r in app.url_map.iter_rules()])), 200
 
-# ---------------- DEBUG ----------------
 
-@app.get("/debug/routes")
-def debug_routes():
-    return jsonify(sorted([str(r) for r in app.url_map.iter_rules()])), 200
-
-
-# 🔵 DATABASE VIEW ROUTE
 @app.get("/debug/db")
 def debug_db():
     users = User.query.all()
@@ -610,19 +612,10 @@ def debug_db():
     reservations = Reservation.query.all()
 
     return jsonify({
-        "users": [
-            {"id": u.id, "name": u.name, "email": u.email}
-            for u in users
-        ],
-        "vehicles": [
-            {"id": v.id, "plate": v.plate_number, "user_id": v.user_id}
-            for v in vehicles
-        ],
-        "reservations": [
-            {"id": r.id, "user_id": r.user_id, "slot_id": r.slot_id}
-            for r in reservations
-        ]
-    })
+        "users": [{"id": u.id, "name": u.name, "email": u.email} for u in users],
+        "vehicles": [{"id": v.id, "plate": v.plate_number, "user_id": v.user_id} for v in vehicles],
+        "reservations": [{"id": r.id, "user_id": r.user_id, "slot_id": r.slot_id, "status": r.status} for r in reservations],
+    }), 200
 
 
 # =========================================================
