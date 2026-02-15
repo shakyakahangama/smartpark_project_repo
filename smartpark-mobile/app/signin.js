@@ -1,123 +1,66 @@
-import React, { useState } from "react";
-import { Text, TextInput, StyleSheet, Alert, Pressable, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
+import { useState } from "react";
+import { View, Text, TextInput, Pressable, Alert, StyleSheet } from "react-native";
+import { router } from "expo-router";
 import { api } from "../src/api/client";
 
-function isValidEmail(email) {
-  const e = email.trim();
-  return e.includes("@") && e.includes(".");
-}
-
-export default function Signin() {
-  const router = useRouter();
-
+export default function SignIn() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
-  async function onLogin() {
-    const cleanEmail = email.trim().toLowerCase();
-
-    if (!isValidEmail(cleanEmail)) {
-      return Alert.alert("Invalid Email", "Enter valid email (example@gmail.com)");
-    }
-
-    if (!password) {
-      return Alert.alert("Password required");
-    }
-
+  const handleLogin = async () => {
     try {
-      await api.login({ email: cleanEmail, password });
+      const res = await api.login({ email, password });
+      Alert.alert("Success", "Login successful");
 
-      router.replace({
-        pathname: "/home",
-        params: { email: cleanEmail },
-      });
+      router.replace("/(tabs)");
     } catch (e) {
-      Alert.alert("Login Error", e.message);
+      Alert.alert("Error", e.message);
     }
-  }
+  };
 
   return (
-    <LinearGradient
-      colors={["#071a3a", "#243b63", "#b9b9b9"]}
-      style={styles.bg}
-    >
-      {/* BACK BUTTON */}
-      <Pressable onPress={() => router.replace("/auth-choice")}>
-        <Text style={styles.back}>← Back</Text>
-      </Pressable>
+    <View style={styles.container}>
+      <Text style={styles.title}>SmartPark Login</Text>
 
-      <Text style={styles.title}>LOGIN</Text>
-
-      <Text style={styles.label}>EMAIL:</Text>
       <TextInput
+        placeholder="Email"
         style={styles.input}
         value={email}
         onChangeText={setEmail}
-        autoCapitalize="none"
-        keyboardType="email-address"
       />
 
-      <Text style={styles.label}>PASSWORD:</Text>
       <TextInput
+        placeholder="Password"
+        secureTextEntry
         style={styles.input}
         value={password}
         onChangeText={setPassword}
-        secureTextEntry
       />
 
-      <Pressable style={styles.btn} onPress={onLogin}>
-        <Text style={styles.btnText}>Sign In</Text>
+      <Pressable style={styles.btn} onPress={handleLogin}>
+        <Text style={{ color: "#fff" }}>Login</Text>
       </Pressable>
-    </LinearGradient>
+
+      <Pressable onPress={() => router.push("/signup")}>
+        <Text style={{ marginTop: 20 }}>Create account</Text>
+      </Pressable>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: { flex: 1, paddingHorizontal: 22, paddingTop: 60 },
-
-  back: {
-    color: "white",
-    fontSize: 16,
-    marginBottom: 10,
-  },
-
-  title: {
-    color: "white",
-    fontSize: 30,
-    fontWeight: "900",
-    textAlign: "center",
-    marginBottom: 20,
-  },
-
-  label: {
-    color: "white",
-    fontWeight: "800",
-    marginTop: 10,
-    marginBottom: 8,
-  },
-
+  container: { flex: 1, justifyContent: "center", padding: 20 },
+  title: { fontSize: 26, marginBottom: 20, fontWeight: "bold" },
   input: {
-    height: 50,
-    backgroundColor: "white",
-    borderRadius: 16,
-    paddingHorizontal: 14,
-    fontSize: 16,
+    borderWidth: 1,
+    marginBottom: 10,
+    padding: 12,
+    borderRadius: 8,
   },
-
   btn: {
-    height: 52,
-    borderRadius: 26,
-    backgroundColor: "#0b1d44",
-    justifyContent: "center",
+    backgroundColor: "black",
+    padding: 14,
     alignItems: "center",
-    marginTop: 20,
-  },
-
-  btnText: {
-    color: "white",
-    fontSize: 18,
-    fontWeight: "800",
+    borderRadius: 8,
   },
 });

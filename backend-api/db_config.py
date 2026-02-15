@@ -1,11 +1,11 @@
+# db_config.py
 import os
 
-BASE_DIR = os.path.abspath(os.path.dirname(__file__))
-DB_PATH = os.path.join(BASE_DIR, "smartpark.db")
+DB_USER = os.getenv("DB_USER", "root")
+DB_PASS = os.getenv("DB_PASS", "Nipuna1234!")          # put your password if you have one
+DB_HOST = os.getenv("DB_HOST", "127.0.0.1")
+DB_NAME = os.getenv("DB_NAME", "smartpark_db")
 
-# ✅ Render / cloud will use DATABASE_URL if it exists
-# ✅ Otherwise local will use SQLite file
-SQLALCHEMY_DATABASE_URI = os.environ.get(
-    "DATABASE_URL",
-    f"sqlite:///{DB_PATH}"
+SQLALCHEMY_DATABASE_URI = (
+    f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}/{DB_NAME}?charset=utf8mb4"
 )

@@ -1,57 +1,33 @@
-const BASE_URL = "http://172.20.10.4:5000"; // your backend IP
+export const BASE_URL = "http://172.20.10.4:5000";
 
-async function request(path, method, body) {
+async function request(path, options = {}) {
   const res = await fetch(`${BASE_URL}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: body ? JSON.stringify(body) : undefined,
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
   });
 
-  let data = null;
+  const text = await res.text();
+  let data;
   try {
-    data = await res.json();
-  } catch (e) {
-    data = null;
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { raw: text };
   }
 
   if (!res.ok) {
-    const msg = data?.error || data?.message || "Request failed";
-    throw new Error(msg);
+    throw new Error((data && data.error) || `Request failed (${res.status})`);
   }
 
   return data;
 }
 
 export const api = {
-  // ================= AUTH =================
-  signup: (payload) => request("/signup", "POST", payload),
-  login: (payload) => request("/login", "POST", payload),
+  signup: (payload) =>
+    request("/signup", { method: "POST", body: JSON.stringify(payload) }),
 
-  // ================= VEHICLE =================
-  addVehicle: (payload) => request("/vehicle/add", "POST", payload),
-
-  listVehicles: (email) =>
-    request(`/vehicle/list/${encodeURIComponent(email)}`, "GET"),
-
-  // 🗑 DELETE VEHICLE
-  deleteVehicle: (payload) =>
-    request("/vehicle/delete", "POST", payload),
-
-  // ================= RESERVATION =================
-  createReservation: (payload) =>
-    request("/reservation/create", "POST", payload),
-
-  listReservations: (email) =>
-    request(`/reservation/list/${encodeURIComponent(email)}`, "GET"),
-
-  cancelReservation: (payload) =>
-    request("/reservation/cancel", "POST", payload),
-
-  // 🗑 HARD DELETE RESERVATION (optional)
-  deleteReservation: (payload) =>
-    request("/reservation/delete", "POST", payload),
-
-  // ================= PATH GUIDANCE =================
-  guidance: (slotCode) =>
-    request(`/guidance/${encodeURIComponent(slotCode)}`, "GET"),
+  login: (payload) =>
+    request("/login", { method: "POST", body: JSON.stringify(payload) }),
 };
