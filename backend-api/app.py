@@ -1,4 +1,4 @@
-# app.py
+# app.py (WORKING for Local + Render/Gunicorn)
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_cors import CORS
@@ -14,7 +14,6 @@ CORS(app)
 
 app.config["SQLALCHEMY_DATABASE_URI"] = SQLALCHEMY_DATABASE_URI
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
-
 db = SQLAlchemy(app)
 
 # =========================================================
@@ -28,8 +27,8 @@ class User(db.Model):
     email = db.Column(db.String(180), unique=True, nullable=False)
     password_hash = db.Column(db.String(255), nullable=False)
 
-    vehicles = db.relationship("Vehicle", backref="user", lazy=True)
-    reservations = db.relationship("Reservation", backref="user", lazy=True)
+    vehicles = db.relationship("Vehicle", backref="user", lazy=True, cascade="all, delete-orphan")
+    reservations = db.relationship("Reservation", backref="user", lazy=True, cascade="all, delete-orphan")
 
 
 class Vehicle(db.Model):
@@ -41,7 +40,7 @@ class Vehicle(db.Model):
     width_m = db.Column(db.Float, nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
 
-    reservations = db.relationship("Reservation", backref="vehicle", lazy=True)
+    reservations = db.relationship("Reservation", backref="vehicle", lazy=True, cascade="all, delete-orphan")
 
 
 class ParkingArea(db.Model):
@@ -49,7 +48,7 @@ class ParkingArea(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(80), unique=True, nullable=False)
 
-    slots = db.relationship("ParkingSlot", backref="area", lazy=True)
+    slots = db.relationship("ParkingSlot", backref="area", lazy=True, cascade="all, delete-orphan")
 
 
 class ParkingSlot(db.Model):
@@ -61,7 +60,7 @@ class ParkingSlot(db.Model):
     status = db.Column(db.String(20), default="available")  # available/reserved/occupied
     area_id = db.Column(db.Integer, db.ForeignKey("parking_areas.id"), nullable=False)
 
-    reservations = db.relationship("Reservation", backref="slot", lazy=True)
+    reservations = db.relationship("Reservation", backref="slot", lazy=True, cascade="all, delete-orphan")
 
 
 class Reservation(db.Model):
@@ -105,10 +104,9 @@ def ensure_area(area_id=1):
     return area
 
 
-# ✅ Auto-expire reservations and free slots
 def expire_reservations():
+    """Auto-expire reservations and free reserved slots."""
     now = datetime.now()
-
     expired = Reservation.query.filter(
         Reservation.status == "active",
         Reservation.end_time <= now
@@ -148,15 +146,14 @@ def next_slot_code(prefix="A"):
     slots = ParkingSlot.query.filter(ParkingSlot.slot_code.like(f"{prefix}%")).all()
     max_num = 0
     for s in slots:
-        code = s.slot_code.replace(prefix, "")
-        if code.isdigit():
-            max_num = max(max_num, int(code))
+        num = s.slot_code.replace(prefix, "")
+        if num.isdigit():
+            max_num = max(max_num, int(num))
     return f"{prefix}{max_num + 1}"
 
 
 def create_slot_for_vehicle(vehicle, area_id=1):
     area = ensure_area(area_id)
-
     code = next_slot_code("A")
 
     # safety margins
@@ -165,7 +162,7 @@ def create_slot_for_vehicle(vehicle, area_id=1):
         length_m=float(vehicle.length_m) + 0.5,
         width_m=float(vehicle.width_m) + 0.3,
         status="available",
-        area_id=area.id
+        area_id=area.id,
     )
     db.session.add(new_slot)
     db.session.commit()
@@ -178,7 +175,6 @@ def create_slot_for_vehicle(vehicle, area_id=1):
 
 def build_graph(row="A", n=50):
     g = {"ENTRANCE": {}}
-
     for i in range(1, min(6, n + 1)):
         g["ENTRANCE"][f"{row}{i}"] = i
 
@@ -189,7 +185,6 @@ def build_graph(row="A", n=50):
             g[node][f"{row}{i+1}"] = 1
         if i > 1:
             g[node][f"{row}{i-1}"] = 1
-
     return g
 
 
@@ -204,10 +199,9 @@ def shortest_path(graph, start, goal):
         cost, node, path = heapq.heappop(pq)
         if node in visited:
             continue
-
         visited.add(node)
-        path = path + [node]
 
+        path = path + [node]
         if node == goal:
             return path, cost
 
@@ -236,6 +230,8 @@ def health():
 
 @app.post("/signup")
 def signup():
+    expire_reservations()
+
     data = request.get_json() or {}
     required = require_fields(data, ["name", "email", "password"])
     if required:
@@ -257,6 +253,8 @@ def signup():
 
 @app.post("/login")
 def login():
+    expire_reservations()
+
     data = request.get_json() or {}
     required = require_fields(data, ["email", "password"])
     if required:
@@ -270,7 +268,7 @@ def login():
 
     return jsonify({
         "message": "Login successful",
-        "user": {"id": user.id, "name": user.name, "email": user.email}
+        "user": {"id": user.id, "name": user.name, "email": user.email},
     }), 200
 
 
@@ -278,6 +276,8 @@ def login():
 
 @app.post("/area/add")
 def add_area():
+    expire_reservations()
+
     data = request.get_json() or {}
     required = require_fields(data, ["name"])
     if required:
@@ -304,6 +304,8 @@ def list_areas():
 
 @app.post("/slot/add")
 def add_slot():
+    expire_reservations()
+
     data = request.get_json() or {}
     required = require_fields(data, ["slot_code", "length_m", "width_m", "area_id"])
     if required:
@@ -339,7 +341,7 @@ def list_slots():
         "status": s.status,
         "area_id": s.area_id,
         "length_m": s.length_m,
-        "width_m": s.width_m
+        "width_m": s.width_m,
     } for s in slots]), 200
 
 
@@ -347,6 +349,8 @@ def list_slots():
 
 @app.post("/vehicle/add")
 def add_vehicle():
+    expire_reservations()
+
     data = request.get_json() or {}
     required = require_fields(data, ["email", "plate_number", "vehicle_type", "length_m", "width_m"])
     if required:
@@ -372,6 +376,7 @@ def add_vehicle():
 @app.get("/vehicle/list/<email>")
 def list_vehicles(email):
     expire_reservations()
+
     email = email.strip().lower()
     user = User.query.filter_by(email=email).first()
     if not user:
@@ -383,13 +388,14 @@ def list_vehicles(email):
         "plate_number": v.plate_number,
         "vehicle_type": v.vehicle_type,
         "length_m": v.length_m,
-        "width_m": v.width_m
+        "width_m": v.width_m,
     } for v in vehicles]), 200
 
 
 @app.post("/vehicle/delete")
 def delete_vehicle():
     expire_reservations()
+
     data = request.get_json() or {}
     required = require_fields(data, ["email", "vehicle_id"])
     if required:
@@ -464,7 +470,7 @@ def create_reservation():
         "message": "Reservation created",
         "reservation_id": r.id,
         "slot": slot.slot_code,
-        "slot_created": created
+        "slot_created": created,
     }), 201
 
 
@@ -477,7 +483,6 @@ def list_reservations(email):
     if not user:
         return jsonify({"error": "User not found"}), 404
 
-    # ✅ only active (so cancelled won’t appear after refresh)
     res = Reservation.query.filter_by(user_id=user.id, status="active") \
         .order_by(Reservation.id.desc()).all()
 
@@ -557,7 +562,7 @@ def guidance(slot_code):
         "slot": slot_code,
         "path": path,
         "distance": dist,
-        "instructions": [f"Go to {n}" for n in path]
+        "instructions": [f"Go to {n}" for n in path],
     }), 200
 
 
@@ -580,7 +585,7 @@ def ai_detect():
     db.session.commit()
     return jsonify({
         "message": "AI detection updated slot statuses (simulated)",
-        "slots": [{"slot": s.slot_code, "status": s.status} for s in slots]
+        "slots": [{"slot": s.slot_code, "status": s.status} for s in slots],
     }), 200
 
 
@@ -590,13 +595,46 @@ def ai_detect():
 def debug_routes():
     return jsonify(sorted([str(r) for r in app.url_map.iter_rules()])), 200
 
+# ---------------- DEBUG ----------------
+
+@app.get("/debug/routes")
+def debug_routes():
+    return jsonify(sorted([str(r) for r in app.url_map.iter_rules()])), 200
+
+
+# 🔵 DATABASE VIEW ROUTE
+@app.get("/debug/db")
+def debug_db():
+    users = User.query.all()
+    vehicles = Vehicle.query.all()
+    reservations = Reservation.query.all()
+
+    return jsonify({
+        "users": [
+            {"id": u.id, "name": u.name, "email": u.email}
+            for u in users
+        ],
+        "vehicles": [
+            {"id": v.id, "plate": v.plate_number, "user_id": v.user_id}
+            for v in vehicles
+        ],
+        "reservations": [
+            {"id": r.id, "user_id": r.user_id, "slot_id": r.slot_id}
+            for r in reservations
+        ]
+    })
+
 
 # =========================================================
-# START
+# IMPORTANT: CREATE TABLES ON IMPORT (Render/Gunicorn)
 # =========================================================
+with app.app_context():
+    db.create_all()
+    ensure_area(1)  # make sure Area 1 exists
 
+
+# =========================================================
+# LOCAL RUN
+# =========================================================
 if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()
-
     app.run(host="0.0.0.0", port=5000, debug=False)
