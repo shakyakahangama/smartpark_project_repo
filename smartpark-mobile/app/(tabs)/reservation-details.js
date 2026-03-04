@@ -1,144 +1,234 @@
-import React, { useEffect, useState } from "react";
-import { Text, StyleSheet, TextInput, Pressable, Alert, FlatList } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams } from "expo-router";
+// app/(tabs)/reservation-details.js
+
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  Alert,
+  StyleSheet,
+  Text,
+  View,
+  ActivityIndicator,
+  TouchableOpacity,
+  Modal,
+  FlatList,
+} from "react-native";
+import { router } from "expo-router";
+import DateTimePicker from "@react-native-community/datetimepicker";
+import GradientScreen from "../../components/GradientScreen";
+import TopBar from "../../components/TopBar";
+import PrimaryButton from "../../components/PrimaryButton";
 import { api } from "../../src/api/client";
+import { session } from "../../src/api/store/session";
 
 export default function ReservationDetails() {
-  const params = useLocalSearchParams();
-  const email = typeof params.email === "string" ? params.email : "";
+  const user = useMemo(() => session.getUser(), []);
+  const email = user?.email;
 
   const [vehicles, setVehicles] = useState([]);
-  const [vehicleId, setVehicleId] = useState("");
-  const [start, setStart] = useState("");
-  const [end, setEnd] = useState("");
+  const [vehicleId, setVehicleId] = useState(null);
+  const [selectedPlate, setSelectedPlate] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
 
-  async function loadVehicles() {
-    try {
-      if (!email) return;
-
-      const list = await api.listVehicles(email);
-      setVehicles(list || []);
-
-      // auto pick first vehicle if exists
-      if ((list || []).length > 0) {
-        setVehicleId(String(list[0].id));
-      }
-    } catch (e) {
-      Alert.alert("Error", e.message);
-    }
-  }
+  const [date, setDate] = useState(new Date());
+  const [time, setTime] = useState(new Date());
 
   useEffect(() => {
-    loadVehicles();
+    (async () => {
+      if (!email) return;
+
+      try {
+        setLoading(true);
+        const list = await api.listVehicles(email);
+
+        setVehicles(list);
+
+        if (list.length > 0) {
+          setVehicleId(list[0].id);
+          setSelectedPlate(list[0].plate_number);
+        } else {
+          Alert.alert("No Vehicles", "Please add vehicle details first.");
+        }
+      } catch (e) {
+        Alert.alert("Error", e.message);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, [email]);
 
-  async function handleReserve() {
+  function combineDateTime(d, t) {
+    const dt = new Date(d);
+    dt.setHours(t.getHours());
+    dt.setMinutes(t.getMinutes());
+    dt.setSeconds(0);
+    return dt;
+  }
+
+  async function onSubmit() {
+    if (!email) return Alert.alert("Error", "Not logged in.");
+    if (!vehicleId) return Alert.alert("Error", "Please select a vehicle.");
+
+    const start = combineDateTime(date, time);
+    const end = new Date(start.getTime() + 60 * 60 * 1000);
+
     try {
-      if (!email) return Alert.alert("Error", "Email missing. Login again.");
-      if (!vehicleId) return Alert.alert("Error", "Select a vehicle first.");
-      if (!start || !end) return Alert.alert("Error", "Enter start and end time.");
-
-      // backend expects HH:MM (colon). you typed 11.00 -> convert dot to colon
-      const cleanStart = start.trim().replace(".", ":");
-      const cleanEnd = end.trim().replace(".", ":");
-
-      const res = await api.createReservation({
+      const payload = {
         email,
-        vehicle_id: Number(vehicleId),
-        start_time: cleanStart,
-        end_time: cleanEnd,
-      });
+        vehicle_id: vehicleId,
+        start_time: formatDT(start),
+        end_time: formatDT(end),
+      };
 
-      Alert.alert("Success ✅", `Slot Allocated: ${res.slot}`);
+      const res = await api.createReservation(payload);
+
+      router.push({
+        pathname: "/(tabs)/reservation-confirmation",
+        params: {
+          slot: res?.slot,
+          reservation_id: res?.reservation_id,
+          start_time: res?.start_time,
+          end_time: res?.end_time,
+          vehicle_id: vehicleId,
+        },
+      });
     } catch (e) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Reservation Failed", e.message);
     }
   }
 
   return (
-    <LinearGradient colors={["#071a3a", "#243b63", "#b9b9b9"]} style={styles.bg}>
-      <Text style={styles.title}>Create Reservation</Text>
-      <Text style={styles.small}>Email: {email || "(missing)"}</Text>
+    <GradientScreen>
+      <TopBar title="Hello user" onBack={() => router.back()} />
 
-      <Text style={styles.sectionTitle}>Your Vehicles (Tap one)</Text>
+      <Text style={styles.title}>RESERVATION DETAILS</Text>
 
-      {vehicles.length === 0 ? (
-        <Text style={styles.small}>No vehicles found. Add a vehicle first.</Text>
-      ) : (
-        <FlatList
-          data={vehicles}
-          keyExtractor={(item) => String(item.id)}
-          style={{ marginBottom: 10 }}
-          renderItem={({ item }) => (
-            <Pressable
-              style={[
-                styles.vehicleCard,
-                String(item.id) === String(vehicleId) && styles.activeCard,
-              ]}
-              onPress={() => setVehicleId(String(item.id))}
-            >
-              <Text style={styles.vehicleText}>
-                ID: {item.id} | {item.plate_number} | {item.vehicle_type}
-              </Text>
-              <Text style={styles.vehicleSub}>
-                {item.length_m}m × {item.width_m}m
-              </Text>
-            </Pressable>
-          )}
+      <Text style={styles.lbl}>DATE:</Text>
+      <View style={styles.pinkRow}>
+        <DateTimePicker
+          value={date}
+          mode="date"
+          onChange={(_, v) => v && setDate(v)}
         />
+      </View>
+
+      <Text style={styles.lbl}>TIME:</Text>
+      <View style={styles.pinkRow}>
+        <DateTimePicker
+          value={time}
+          mode="time"
+          onChange={(_, v) => v && setTime(v)}
+        />
+      </View>
+
+      <Text style={styles.lbl}>VEHICLE PLATE NUMBER:</Text>
+
+      {loading ? (
+        <ActivityIndicator color="white" />
+      ) : (
+        <TouchableOpacity
+          style={styles.dropdown}
+          onPress={() => setDropdownVisible(true)}
+        >
+          <Text style={styles.dropdownText}>
+            {selectedPlate || "Select Vehicle"}
+          </Text>
+        </TouchableOpacity>
       )}
 
-      <TextInput
-        style={styles.input}
-        value={vehicleId}
-        editable={false}
-        placeholder="Selected Vehicle ID"
-        placeholderTextColor="#aaa"
-      />
+      <PrimaryButton title="SUBMIT" onPress={onSubmit} />
 
-      <TextInput
-        style={styles.input}
-        placeholder="Start (YYYY-MM-DD HH:MM) e.g. 2026-02-05 11:00"
-        placeholderTextColor="#aaa"
-        value={start}
-        onChangeText={setStart}
-      />
-
-      <TextInput
-        style={styles.input}
-        placeholder="End (YYYY-MM-DD HH:MM) e.g. 2026-02-05 12:00"
-        placeholderTextColor="#aaa"
-        value={end}
-        onChangeText={setEnd}
-      />
-
-      <Pressable style={styles.btn} onPress={handleReserve}>
-        <Text style={styles.btnText}>RESERVE SLOT</Text>
-      </Pressable>
-
-      <Pressable style={styles.secondaryBtn} onPress={loadVehicles}>
-        <Text style={styles.secondaryText}>Refresh Vehicles</Text>
-      </Pressable>
-    </LinearGradient>
+      {/* MODAL DROPDOWN */}
+      <Modal visible={dropdownVisible} transparent animationType="fade">
+        <View style={styles.modalContainer}>
+          <View style={styles.modalBox}>
+            <FlatList
+              data={vehicles}
+              keyExtractor={(item) => item.id.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={styles.option}
+                  onPress={() => {
+                    setVehicleId(item.id);
+                    setSelectedPlate(item.plate_number);
+                    setDropdownVisible(false);
+                  }}
+                >
+                  <Text style={styles.optionText}>
+                    {item.plate_number}
+                  </Text>
+                </TouchableOpacity>
+              )}
+            />
+            <TouchableOpacity
+              onPress={() => setDropdownVisible(false)}
+              style={styles.closeBtn}
+            >
+              <Text style={{ color: "white" }}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+    </GradientScreen>
   );
 }
 
+function formatDT(dt) {
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(
+    dt.getDate()
+  )} ${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+}
+
 const styles = StyleSheet.create({
-  bg: { flex: 1, padding: 20, paddingTop: 60 },
-  title: { color: "white", fontSize: 26, fontWeight: "900", textAlign: "center", marginBottom: 6 },
-  small: { color: "white", textAlign: "center", opacity: 0.8, marginBottom: 10 },
-  sectionTitle: { color: "white", fontWeight: "900", marginBottom: 10 },
-
-  vehicleCard: { backgroundColor: "#0b1d44", borderRadius: 14, padding: 12, marginBottom: 10 },
-  activeCard: { borderWidth: 2, borderColor: "#fff" },
-  vehicleText: { color: "white", fontWeight: "800" },
-  vehicleSub: { color: "white", opacity: 0.8, marginTop: 4 },
-
-  input: { backgroundColor: "#0b1d44", height: 50, borderRadius: 12, marginBottom: 12, paddingHorizontal: 12, color: "white" },
-  btn: { backgroundColor: "#071a3a", height: 55, borderRadius: 16, justifyContent: "center", alignItems: "center", marginTop: 6 },
-  btnText: { color: "white", fontWeight: "900", fontSize: 16 },
-
-  secondaryBtn: { marginTop: 10, height: 44, borderRadius: 14, backgroundColor: "rgba(11,29,68,0.65)", justifyContent: "center", alignItems: "center" },
-  secondaryText: { color: "white", fontWeight: "800" },
+  title: {
+    color: "white",
+    fontSize: 26,
+    textAlign: "center",
+    marginVertical: 12,
+    fontWeight: "600",
+  },
+  lbl: {
+    color: "#ddd",
+    marginTop: 16,
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+  pinkRow: {
+    backgroundColor: "#b48f90",
+    borderRadius: 18,
+    padding: 6,
+    marginTop: 10,
+  },
+  dropdown: {
+    backgroundColor: "white",
+    borderRadius: 18,
+    padding: 14,
+    marginTop: 10,
+  },
+  dropdownText: {
+    color: "#000",
+  },
+  modalContainer: {
+    flex: 1,
+    justifyContent: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  modalBox: {
+    backgroundColor: "#061a44",
+    margin: 20,
+    borderRadius: 12,
+    padding: 15,
+  },
+  option: {
+    padding: 15,
+    borderBottomWidth: 1,
+    borderBottomColor: "#444",
+  },
+  optionText: {
+    color: "white",
+  },
+  closeBtn: {
+    marginTop: 10,
+    alignItems: "center",
+  },
 });

@@ -1,70 +1,145 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, Alert, StyleSheet } from "react-native";
+// app/signup.js
+import React, { useMemo, useState } from "react";
+import { Alert, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
+import GradientScreen from "../components/GradientScreen";
+import TopBar from "../components/TopBar";
+import TextField from "../components/TextField";
+import PrimaryButton from "../components/PrimaryButton";
 import { api } from "../src/api/client";
 
 export default function Signup() {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [contact, setContact] = useState("");
   const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
 
-  const handleSignup = async () => {
+  const canClear = useMemo(
+    () => !!(name || email || contact || password || confirm),
+    [name, email, contact, password, confirm]
+  );
+
+  async function onSignup() {
+    if (!name || !email || !password || !confirm) {
+      Alert.alert("Error", "Please fill all required fields.");
+      return;
+    }
+
+    if (!email.toLowerCase().endsWith("@gmail.com")) {
+      Alert.alert("Error", "Email must be a @gmail.com address.");
+      return;
+    }
+
+    const contactRegex = /^\d{10}$/;
+    if (contact && !contactRegex.test(contact)) {
+      Alert.alert("Error", "Contact number must be exactly 10 digits.");
+      return;
+    }
+
+    if (password !== confirm) {
+      Alert.alert("Error", "Password does not match.");
+      return;
+    }
+
     try {
-      await api.signup({ name, email, password });
-      Alert.alert("Success", "Account created");
+      const data = await api.signup({
+        name,
+        email,
+        contact_number: contact,
+        password,
+      });
 
+      Alert.alert("Success", data.message || "Account created successfully");
       router.replace("/signin");
     } catch (e) {
-      Alert.alert("Error", e.message);
+      Alert.alert("Signup Failed", e.message);
     }
-  };
+  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>Create Account</Text>
+    <GradientScreen>
+      <TopBar title="" onBack={() => router.back()} />
 
-      <TextInput
-        placeholder="Name"
-        style={styles.input}
-        value={name}
-        onChangeText={setName}
-      />
+      <View style={styles.container}>
+        <Text style={styles.title}>REGISTRATION</Text>
 
-      <TextInput
-        placeholder="Email"
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-      />
+        <Text style={styles.lbl}>NAME:</Text>
+        <TextField value={name} onChangeText={setName} />
 
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-      />
+        <Text style={styles.lbl}>EMAIL:*</Text>
+        <TextField
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+        />
 
-      <Pressable style={styles.btn} onPress={handleSignup}>
-        <Text style={{ color: "#fff" }}>Register</Text>
-      </Pressable>
-    </View>
+        <Text style={styles.lbl}>CONTACT NUMBER:</Text>
+        <TextField
+          value={contact}
+          onChangeText={setContact}
+          keyboardType="phone-pad"
+        />
+
+        <Text style={styles.lbl}>PASSWORD:*</Text>
+        <TextField
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry
+        />
+
+        <Text style={styles.lbl}>CONFIRM PASSWORD:*</Text>
+        <TextField
+          value={confirm}
+          onChangeText={setConfirm}
+          secureTextEntry
+        />
+
+        <View style={styles.row}>
+          <PrimaryButton
+            title="CLEAR"
+            onPress={() => {
+              if (!canClear) return;
+              setName("");
+              setEmail("");
+              setContact("");
+              setPassword("");
+              setConfirm("");
+            }}
+            style={{ flex: 1, marginRight: 10 }}
+          />
+          <PrimaryButton
+            title="SIGN UP"
+            onPress={onSignup}
+            style={{ flex: 1, marginLeft: 10 }}
+          />
+        </View>
+      </View>
+    </GradientScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20 },
-  title: { fontSize: 26, marginBottom: 20, fontWeight: "bold" },
-  input: {
-    borderWidth: 1,
-    marginBottom: 10,
-    padding: 12,
-    borderRadius: 8,
+  container: {
+    paddingHorizontal: 24,
+    marginTop: 20,
   },
-  btn: {
-    backgroundColor: "black",
-    padding: 14,
-    alignItems: "center",
-    borderRadius: 8,
+  title: {
+    color: "white",
+    fontSize: 30,
+    letterSpacing: 3,
+    textAlign: "center",
+    marginBottom: 30,
+    fontWeight: "600",
+  },
+  lbl: {
+    color: "#ddd",
+    marginTop: 16,
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  row: {
+    flexDirection: "row",
+    marginTop: 28,
   },
 });

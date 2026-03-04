@@ -1,208 +1,81 @@
+// app/(tabs)/display-reservation.js
 import React, { useEffect, useState } from "react";
-import {
-  View,
-  Text,
-  StyleSheet,
-  FlatList,
-  ActivityIndicator,
-  Pressable,
-  Alert,
-} from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams } from "expo-router";
+import { StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import GradientScreen from "../../components/GradientScreen";
+import TopBar from "../../components/TopBar";
+import { session } from "../../src/api/store/session";
 import { api } from "../../src/api/client";
 
 export default function DisplayReservation() {
-  const params = useLocalSearchParams();
-  const email = typeof params.email === "string" ? params.email : "";
-
-  const [loading, setLoading] = useState(true);
-  const [reservations, setReservations] = useState([]);
+  const [data, setData] = useState(null);
+  const [vehicle, setVehicle] = useState(null);
 
   useEffect(() => {
-    loadReservations();
-  }, [email]);
+    (async () => {
+      const last = await session.getLastReservation();
+      setData(last);
 
-  async function loadReservations() {
-    try {
-      if (!email) {
-        setReservations([]);
-        return;
+      const email = last?.user?.email;
+      if (email) {
+        const vehicles = await api.listVehicles(email);
+        const v = vehicles.find((x) => String(x.id) === String(last.vehicleId));
+        setVehicle(v || null);
       }
+    })();
+  }, []);
 
-      setLoading(true);
-
-      // ✅ load from API client
-      const data = await api.listReservations(email);
-
-      // ✅ IMPORTANT: remove cancelled/completed reservations from UI
-      const onlyActive = (data || []).filter((r) => r.status === "active");
-
-      setReservations(onlyActive);
-    } catch (err) {
-      console.log(err);
-      Alert.alert("Error", err.message || "Failed to load reservations");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  async function handleCancel(reservationId) {
-    Alert.alert(
-      "Cancel Reservation",
-      "Are you sure you want to cancel this reservation?",
-      [
-        { text: "No", style: "cancel" },
-        {
-          text: "Yes, Cancel",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api.cancelReservation({ reservation_id: reservationId });
-
-              // ✅ remove it immediately from UI (no need to wait refresh)
-              setReservations((prev) => prev.filter((r) => r.id !== reservationId));
-
-              Alert.alert("Success ✅", "Reservation cancelled");
-            } catch (err) {
-              Alert.alert("Error", err.message || "Cancel failed");
-            }
-          },
-        },
-      ]
-    );
-  }
-
-  if (loading) {
+  if (!data) {
     return (
-      <LinearGradient
-        colors={["#071a3a", "#243b63", "#b9b9b9"]}
-        style={styles.bg}
-      >
-        <ActivityIndicator size="large" color="white" />
-      </LinearGradient>
+      <GradientScreen>
+        <TopBar title="" onBack={() => router.back()} />
+        <Text style={{ color: "white", textAlign: "center", marginTop: 30 }}>
+          No reservation to display yet.
+        </Text>
+      </GradientScreen>
     );
   }
+
+  const u = data.user;
 
   return (
-    <LinearGradient
-      colors={["#071a3a", "#243b63", "#b9b9b9"]}
-      style={styles.bg}
-    >
-      <Text style={styles.title}>My Reservations</Text>
+    <GradientScreen>
+      <TopBar title="" onBack={() => router.back()} />
+      <Text style={styles.title}>RESERVATION DETAILS</Text>
 
-      {reservations.length === 0 ? (
-        <Text style={styles.empty}>No active reservations</Text>
-      ) : (
-        <FlatList
-          data={reservations}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <View style={styles.card}>
-              {/* NOTE: Your backend currently may not return slot/plate.
-                  So we safely show "-" if missing. */}
-              <Text style={styles.slot}>Slot: {item.slot || "-"}</Text>
-              <Text style={styles.text}>Plate: {item.plate || "-"}</Text>
+      <View style={styles.statusRow}>
+        <Text style={styles.status}>STATUS : CONFIRMED</Text>
+        <View style={styles.ok} />
+      </View>
 
-              <Text style={styles.text}>Start: {item.start_time}</Text>
-              <Text style={styles.text}>End: {item.end_time}</Text>
+      <View style={styles.card}>
+        <Text style={styles.h}>USER INFORMATION</Text>
+        <Text style={styles.line}>Name : {u?.name}</Text>
+        <Text style={styles.line}>Email : {u?.email}</Text>
+        <Text style={styles.line}>Contact Number : {u?.contact_number || u?.contact || "-"}</Text>
 
-              <Text style={styles.status}>Status: {item.status}</Text>
+        <Text style={[styles.h, { marginTop: 14 }]}>VEHICLE DETAILS</Text>
+        <Text style={styles.line}>Plate Number : {vehicle?.plate_number || "-"}</Text>
+        <Text style={styles.line}>
+          Dimensions of the vehicle : {vehicle?.length || "-"} m × {vehicle?.width || "-"} m
+        </Text>
+        <Text style={styles.line}>Vehicle door opening type : {vehicle?.door_type || "-"}</Text>
 
-              {/* ✅ Cancel button */}
-              <Pressable
-                style={styles.deleteBtn}
-                onPress={() => handleCancel(item.id)}
-              >
-                <Text style={styles.deleteText}>Cancel</Text>
-              </Pressable>
-            </View>
-          )}
-        />
-      )}
-
-      <Pressable style={styles.refreshBtn} onPress={loadReservations}>
-        <Text style={styles.refreshText}>Refresh</Text>
-      </Pressable>
-    </LinearGradient>
+        <Text style={[styles.h, { marginTop: 14 }]}>RESERVATION DETAILS</Text>
+        <Text style={styles.line}>Start : {data.startTime}</Text>
+        <Text style={styles.line}>End : {data.endTime}</Text>
+        <Text style={styles.line}>Confirmed Space : {data.slot}</Text>
+      </View>
+    </GradientScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  bg: {
-    flex: 1,
-    padding: 20,
-    paddingTop: 60,
-  },
-
-  title: {
-    color: "white",
-    fontSize: 26,
-    fontWeight: "900",
-    marginBottom: 20,
-    textAlign: "center",
-  },
-
-  empty: {
-    color: "white",
-    textAlign: "center",
-    marginTop: 40,
-    fontSize: 16,
-    fontWeight: "700",
-  },
-
-  card: {
-    backgroundColor: "#0b1d44",
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
-  },
-
-  slot: {
-    color: "#00ffcc",
-    fontSize: 18,
-    fontWeight: "bold",
-    marginBottom: 6,
-  },
-
-  text: {
-    color: "white",
-    marginBottom: 4,
-  },
-
-  status: {
-    color: "#ffd700",
-    marginTop: 6,
-    fontWeight: "bold",
-  },
-
-  deleteBtn: {
-    marginTop: 12,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(255, 0, 0, 0.25)",
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(255,0,0,0.6)",
-  },
-
-  deleteText: {
-    color: "white",
-    fontWeight: "900",
-  },
-
-  refreshBtn: {
-    marginTop: 10,
-    height: 44,
-    borderRadius: 14,
-    backgroundColor: "rgba(11,29,68,0.65)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-
-  refreshText: {
-    color: "white",
-    fontWeight: "900",
-  },
+  title: { color: "white", fontSize: 24, letterSpacing: 2, textAlign: "center", marginVertical: 10, fontWeight: "600" },
+  statusRow: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: 10 },
+  status: { color: "#ddd", letterSpacing: 1, fontWeight: "700" },
+  ok: { width: 18, height: 18, borderRadius: 18, backgroundColor: "#20c05c" },
+  card: { backgroundColor: "white", borderRadius: 16, padding: 16, marginTop: 10 },
+  h: { fontWeight: "800", letterSpacing: 1, marginBottom: 6, color: "#333" },
+  line: { color: "#333", marginTop: 4, fontWeight: "600" },
 });

@@ -1,66 +1,148 @@
-import { useState } from "react";
-import { View, Text, TextInput, Pressable, Alert, StyleSheet } from "react-native";
+// app/signin.js
+import React, { useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { router } from "expo-router";
+import GradientScreen from "../components/GradientScreen";
+import TopBar from "../components/TopBar";
+import TextField from "../components/TextField";
+import PrimaryButton from "../components/PrimaryButton";
 import { api } from "../src/api/client";
+import { session } from "../src/api/store/session";
 
-export default function SignIn() {
+export default function Signin() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
 
-  const handleLogin = async () => {
-    try {
-      const res = await api.login({ email, password });
-      Alert.alert("Success", "Login successful");
-
-      router.replace("/(tabs)");
-    } catch (e) {
-      Alert.alert("Error", e.message);
+  async function onSignin() {
+    if (!email.trim() || !password.trim()) {
+      Alert.alert("Error", "Please enter email and password.");
+      return;
     }
-  };
+
+    try {
+      const data = await api.login({
+        email: email.trim().toLowerCase(),
+        password,
+      });
+
+      await session.setAuth(data.user, data.vehicles);
+
+      router.replace("/(tabs)/home");
+    } catch (err) {
+      Alert.alert("Login Failed", err.message || "Invalid credentials");
+    }
+  }
 
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>SmartPark Login</Text>
+    <GradientScreen>
+      <TopBar title="" onBack={() => router.back()} />
 
-      <TextInput
-        placeholder="Email"
-        style={styles.input}
-        value={email}
-        onChangeText={setEmail}
-      />
+      <View style={styles.container}>
+        <Text style={styles.title}>LOGIN</Text>
 
-      <TextInput
-        placeholder="Password"
-        secureTextEntry
-        style={styles.input}
-        value={password}
-        onChangeText={setPassword}
-      />
+        <Text style={styles.label}>EMAIL:</Text>
+        <TextField
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+        />
 
-      <Pressable style={styles.btn} onPress={handleLogin}>
-        <Text style={{ color: "#fff" }}>Login</Text>
-      </Pressable>
+        <Text style={styles.label}>PASSWORD:</Text>
+        <TextField
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!showPassword}
+        />
 
-      <Pressable onPress={() => router.push("/signup")}>
-        <Text style={{ marginTop: 20 }}>Create account</Text>
-      </Pressable>
-    </View>
+        <View style={styles.showRow}>
+          <Pressable
+            onPress={() => setShowPassword(!showPassword)}
+            style={styles.checkboxBox}
+          >
+            {showPassword && <View style={styles.checkboxInner} />}
+          </Pressable>
+          <Text style={styles.showText}>SHOW PASSWORD</Text>
+        </View>
+
+        <PrimaryButton title="SIGN IN" onPress={onSignin} />
+
+        <Text style={styles.link}>FORGOT PASSWORD</Text>
+
+        <Text style={styles.link}>
+          DON'T HAVE AN ACCOUNT?{" "}
+          <Text
+            style={styles.signup}
+            onPress={() => router.push("/signup")}
+          >
+            SIGN UP
+          </Text>
+        </Text>
+      </View>
+    </GradientScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, justifyContent: "center", padding: 20 },
-  title: { fontSize: 26, marginBottom: 20, fontWeight: "bold" },
-  input: {
-    borderWidth: 1,
-    marginBottom: 10,
-    padding: 12,
-    borderRadius: 8,
+  container: {
+    paddingHorizontal: 24,
+    marginTop: 20,
   },
-  btn: {
-    backgroundColor: "black",
-    padding: 14,
+
+  title: {
+    color: "white",
+    fontSize: 32,
+    textAlign: "center",
+    letterSpacing: 3,
+    marginBottom: 30,
+    fontWeight: "600",
+  },
+
+  label: {
+    color: "#ddd",
+    marginTop: 16,
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+
+  showRow: {
+    flexDirection: "row",
     alignItems: "center",
-    borderRadius: 8,
+    marginVertical: 12,
+  },
+
+  checkboxBox: {
+    width: 18,
+    height: 18,
+    borderRadius: 3,
+    backgroundColor: "#fff",
+    marginRight: 8,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+
+  checkboxInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 2,
+    backgroundColor: "#061a44",
+  },
+
+  showText: {
+    color: "#ddd",
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+
+  link: {
+    color: "#ddd",
+    textAlign: "center",
+    marginTop: 14,
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+
+  signup: {
+    color: "#9fc5ff",
   },
 });

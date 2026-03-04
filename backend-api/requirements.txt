@@ -3,3 +3,7 @@ flask-cors
 flask-sqlalchemy
 werkzeug
 gunicorn
+pymysql
+cryptography
+opencv-python
+numpy

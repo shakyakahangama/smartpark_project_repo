@@ -1,151 +1,38 @@
-import React from "react";
-import { Text, StyleSheet, Pressable, Image, ScrollView, View } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
-import { Ionicons } from "@expo/vector-icons";
-import { useRouter, useLocalSearchParams } from "expo-router";
+// app/(tabs)/home.js
+import React, { useMemo } from "react";
+import { StyleSheet, Text, View } from "react-native";
+import { router } from "expo-router";
+import GradientScreen from "../../components/GradientScreen";
+import PrimaryButton from "../../components/PrimaryButton";
+import { session } from "../../src/api/store/session";
 
 export default function Home() {
-  const router = useRouter();
-  const { email } = useLocalSearchParams();
+  const user = useMemo(() => session.getUser() || null, []);
+  const name = user?.name || "User";
 
   return (
-    <LinearGradient colors={["#071a3a", "#243b63", "#b9b9b9"]} style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <GradientScreen>
+      <Text style={styles.hello}>HELLO!{"\n"}{name}</Text>
 
-        {/* TITLE */}
-        <Text style={styles.title}>SMARTPARK</Text>
-        <Text style={styles.subtitle}>Welcome back 🎉</Text>
-        <Text style={styles.email}>Email: {email}</Text>
-
-        {/* BIG CENTER LOGO ONLY */}
-        <Image
-          source={require("../../assets/images/logo.png")}
-          style={styles.bigLogo}
-        />
-
-        {/* BUTTONS */}
-        <View style={{ marginTop: 20 }}>
-          <MenuCard
-            icon="car-sport"
-            text="Vehicle Details"
-            onPress={() =>
-              router.push({
-                pathname: "/vehicle-details",
-                params: { email },
-              })
-            }
-          />
-
-          <MenuCard
-            icon="calendar"
-            text="Reservation"
-            onPress={() =>
-              router.push({
-                pathname: "/reservation-details",
-                params: { email },
-              })
-            }
-          />
-
-          <MenuCard
-            icon="list"
-            text="Display Reservation"
-            onPress={() =>
-              router.push({
-                pathname: "/display-reservation",
-                params: { email },
-              })
-            }
-          />
-
-          <MenuCard
-            icon="navigate"
-            text="Path Guidance"
-            onPress={() =>
-              router.push({
-                pathname: "/path-guidance",
-                params: { email },
-              })
-            }
-          />
-
-          <MenuCard
-            icon="chatbox-ellipses"
-            text="Feedback"
-            onPress={() =>
-              router.push({
-                pathname: "/feedback",
-                params: { email },
-              })
-            }
-          />
-        </View>
-
-      </ScrollView>
-    </LinearGradient>
-  );
-}
-
-function MenuCard({ icon, text, onPress }) {
-  return (
-    <Pressable style={styles.card} onPress={onPress}>
-      <Ionicons name={icon} size={24} color="#fff" />
-      <Text style={styles.cardText}>{text}</Text>
-    </Pressable>
+      <View style={{ marginTop: 20, gap: 12 }}>
+        <PrimaryButton title="INPUT VEHICLE DETAILS" onPress={() => router.push("/(tabs)/vehicle-details")} />
+        <PrimaryButton title="MAKE RESERVATION" onPress={() => router.push("/(tabs)/reservation-details")} />
+        <PrimaryButton title="PATH GUIDANCE" onPress={() => router.push("/(tabs)/path-guidance")} />
+        <PrimaryButton title="DISPLAY THE RESERVATION" onPress={() => router.push("/(tabs)/display-reservation")} />
+        <PrimaryButton title="NOTIFICATIONS" onPress={() => router.push("/(tabs)/notifications")} />
+        <PrimaryButton title="FEEDBACK" onPress={() => router.push("/(tabs)/feedback")} />
+        <PrimaryButton title="LOG OUT" onPress={() => router.push("/(tabs)/logout")} />
+      </View>
+    </GradientScreen>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    paddingHorizontal: 22,
-    paddingTop: 60,
-    paddingBottom: 40,
-  },
-
-  title: {
+  hello: {
     color: "white",
-    fontSize: 32,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-
-  subtitle: {
-    color: "white",
-    fontSize: 16,
-    textAlign: "center",
-    marginTop: 6,
-  },
-
-  email: {
-    color: "white",
-    opacity: 0.7,
-    textAlign: "center",
-    marginTop: 6,
-  },
-
-  bigLogo: {
-    width: 180,
-    height: 180,
-    alignSelf: "center",
-    marginTop: 20,
-    marginBottom: 20,
-    resizeMode: "contain",
-  },
-
-  card: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 14,
-    height: 64,
-    borderRadius: 18,
-    backgroundColor: "#0b1d44",
-    paddingHorizontal: 18,
-    marginBottom: 14,
-  },
-
-  cardText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "800",
+    fontSize: 28,
+    letterSpacing: 2,
+    fontWeight: "700",
+    marginTop: 10,
   },
 });
